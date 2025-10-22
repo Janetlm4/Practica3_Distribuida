@@ -9,23 +9,35 @@ class NodoDFS(Nodo):
     ''' Implementa la interfaz de Nodo para el algoritmo de DFS.'''
     def __init__(self, id_nodo, vecinos, canal_entrada, canal_salida):
         ''' Constructor de nodo que implemente el algoritmo DFS. '''
+        # El constructor inicializa los atributos del nodo. Establece:
+        # - El nodo como su propio padre inicialmente.
+        # - Una lista vacía para los hijos.
+        # - Un conjunto vacío para los nodos visitados.
+        # - Ordena los vecinos para facilitar su exploración.
+        # - Marca que el nodo aún no ha sido iniciado y no tiene un padre actual.
+
         super().__init__(id_nodo, vecinos, canal_entrada, canal_salida)
         self.padre = id_nodo
         self.hijos = []
         self.visitados = set()
         self.vecinos_ordenados = sorted(vecinos)
         self.iniciado = False
-        self.padre_actual = None  # Para rastrear quién nos envió el mensaje
+        self.padre_actual = None  
 
     def dfs(self, env):
         ''' Algoritmo DFS. '''
+        # Este método implementa el algoritmo de búsqueda en profundidad (DFS).
+        # Comienza con el nodo raíz (id 0), explora los vecinos y sigue el recorrido DFS,
+        # enviando mensajes a los nodos vecinos para continuar o retroceder según corresponda.
+
         if self.id_nodo == 0 and not self.iniciado:
             self.iniciado = True
             self.padre = 0
             self.visitados.add(0)
             yield env.timeout(TICK)
+
+            # Si hay vecinos para explorar, comienza el recorrido DFS.
             
-            # Enviar GO al primer vecino (menor identificador)
             if self.vecinos_ordenados:
                 k = self.vecinos_ordenados[0]
                 self.hijos = [k]
@@ -36,25 +48,25 @@ class NodoDFS(Nodo):
             tipo, sender, visited_set = mensaje
             
             if tipo == 'GO':
-                # El 'sender' es nuestro padre en el árbol DFS
-                if self.padre == self.id_nodo:  # Si aún no tenemos padre establecido
+                # Si el nodo aún no tiene un padre, lo establece.
+                if self.padre == self.id_nodo:  
                     self.padre = sender
                 
+                # Actualiza el conjunto de nodos visitados.
                 self.visitados.update(visited_set)
                 self.visitados.add(self.id_nodo)
                 
-                # Vecinos no visitados (excluyendo al padre)
+                # Filtra los vecinos no visitados y no padres.
                 vecinos_no_visitados = [v for v in self.vecinos_ordenados 
                                       if v not in self.visitados and v != self.padre]
                 
                 if not vecinos_no_visitados:
-                    # No hay más vecinos por explorar, retroceder
+                    # Si no hay vecinos, envía un mensaje de retroceso al nodo padre.
                     if self.padre != self.id_nodo:
                         yield env.timeout(TICK)
                         yield self.canal_salida.envia(('BACK', self.id_nodo, self.visitados), [self.padre])
                     self.hijos = []  # No tenemos hijos en este camino
                 else:
-                    # Explorar al siguiente vecino no visitado
                     k = vecinos_no_visitados[0]
                     if k not in self.hijos:
                         self.hijos.append(k)
@@ -62,20 +74,17 @@ class NodoDFS(Nodo):
                     yield self.canal_salida.envia(('GO', self.id_nodo, self.visitados), [k])
             
             elif tipo == 'BACK':
-                # Actualizar visitados
+                # En el caso de retroceso, actualiza los nodos visitados y sigue explorando.
                 self.visitados.update(visited_set)
                 
-                # Buscar siguiente vecino no visitado (excluyendo al padre)
                 vecinos_no_visitados = [v for v in self.vecinos_ordenados 
                                       if v not in self.visitados and v != self.padre]
                 
                 if not vecinos_no_visitados:
-                    # No hay más vecinos, seguir retrocediendo
                     if self.padre != self.id_nodo:
                         yield env.timeout(TICK)
                         yield self.canal_salida.envia(('BACK', self.id_nodo, self.visitados), [self.padre])
                 else:
-                    # Explorar siguiente vecino no visitado
                     k = vecinos_no_visitados[0]
                     if k not in self.hijos:
                         self.hijos.append(k)
